@@ -2,7 +2,9 @@ import express from "express";
 import axios from "axios";
 
 const app = express();
-app.use(express.json());
+
+// Parse URL-encoded bodies (Bitrix sends payload as x-www-form-urlencoded)
+app.use(express.urlencoded({ extended: true }));
 
 const BITRIX_BASE = "https://tlre.bitrix24.com/rest/17/q49rh3i333ywswgp";
 
@@ -10,7 +12,6 @@ const BITRIX_BASE = "https://tlre.bitrix24.com/rest/17/q49rh3i333ywswgp";
 async function getFieldDefinitions(entityTypeId) {
   const url = `${BITRIX_BASE}/crm.item.fields.json`;
   const res = await axios.post(url, { entityTypeId });
-  // Only return the "fields" object
   return res.data.result.fields;
 }
 
@@ -50,12 +51,11 @@ function transformItem(item, fieldsMeta) {
           output[label] = value.url || value.urlMachine || value;
         }
       }
-      // Multiple or other fields
+      // All other fields
       else {
         output[label] = value;
       }
     } else {
-      // Fields without metadata, keep original key
       output[key] = value;
     }
   }
@@ -66,23 +66,27 @@ function transformItem(item, fieldsMeta) {
 // Webhook listener
 app.post("/webhook", async (req, res) => {
   try {
-    console.log("Incoming webhook payload:", req.body);
+    // Bitrix sends a URL-encoded 'payload' or direct fields
+    const payload = req.body; 
+    console.log("Incoming webhook payload:", payload);
 
     // Parse entityTypeId and itemId from document_id
-    const [, , dynamicId] = req.body.document_id;
+    const document_id = JSON.parse(payload.document_id || JSON.stringify(payload.document_id));
+    const [, , dynamicId] = document_id;
     const [, entityTypeId, itemId] = dynamicId.split("_");
 
     console.log(`Parsed entityTypeId=${entityTypeId}, itemId=${itemId}`);
 
-    // Fetch metadata and item data
+    // Fetch metadata + item data
     const fieldsMeta = await getFieldDefinitions(entityTypeId);
     const item = await getItem(entityTypeId, itemId);
 
-    // Transform raw data into labels
+    // Transform raw data into human-readable labels
     const cleanData = transformItem(item, fieldsMeta);
 
     console.log("Transformed item:", cleanData);
-    res.json(cleanData);
+
+    res.json({ success: true }); // respond quickly to Bitrix
   } catch (error) {
     console.error("Error:", error.response?.data || error.message);
     res.status(500).send(error.toString());
