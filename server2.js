@@ -289,12 +289,21 @@ async function mapToPropertyFinderPayload(bitrixData) {
     payload.amenities = bitrixData.amenities;
   }
 
-  // Assigned user
-  if (bitrixData['Responsible person']) {
+  // Assigned user - OPTIONAL: Map Bitrix user ID to PropertyFinder agent ID
+  // Comment this out if you don't have agent mappings or want auto-assignment
+  /*
+  const agentMapping = {
+    9: 123,   // Bitrix user 9 -> PropertyFinder agent 123
+    17: 456,  // Bitrix user 17 -> PropertyFinder agent 456
+    // Add your mappings here
+  };
+  
+  if (bitrixData['Responsible person'] && agentMapping[bitrixData['Responsible person']]) {
     payload.assignedTo = {
-      id: parseInt(bitrixData['Responsible person'])
+      id: agentMapping[bitrixData['Responsible person']]
     };
   }
+  */
 
   return payload;
 }
