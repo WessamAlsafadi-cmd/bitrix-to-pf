@@ -2,28 +2,25 @@ import express from "express";
 import axios from "axios";
 
 const app = express();
-
-// Parse both JSON and URL-encoded payloads
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 const BITRIX_BASE = "https://tlre.bitrix24.com/rest/17/q49rh3i333ywswgp";
 
-// Get CRM field definitions
+// Fetch field metadata (labels, types, enum values, etc.)
 async function getFieldDefinitions(entityTypeId) {
   const url = `${BITRIX_BASE}/crm.item.fields.json`;
   const res = await axios.post(url, { entityTypeId });
   return res.data.result;
 }
 
-// Get CRM item data
+// Fetch the actual CRM item data
 async function getItem(entityTypeId, itemId) {
   const url = `${BITRIX_BASE}/crm.item.get.json`;
   const res = await axios.post(url, { entityTypeId, id: itemId });
   return res.data.result.item;
 }
 
-// Transform item to use readable labels
+// Transform raw data into human-readable labels
 function transformItem(item, fieldsMeta) {
   const output = {};
   for (const key in item) {
@@ -50,30 +47,29 @@ function transformItem(item, fieldsMeta) {
   return output;
 }
 
+// Webhook listener
 app.post("/webhook", async (req, res) => {
   try {
     console.log("Incoming webhook payload:", req.body);
 
-    // Extract entityTypeId and itemId from document_id[2]
-    const docId = req.body.document_id?.[2]; // e.g., "DYNAMIC_1036_5"
-    if (!docId) return res.status(400).send("Missing document_id[2]");
+    // Parse entityTypeId and id from document_id
+    const [ , , dynamicId ] = req.body.document_id;
+    const [ , entityTypeId, itemId ] = dynamicId.split("_");
 
-    const parts = docId.split("_");
-    const entityTypeId = parseInt(parts[1]);
-    const itemId = parseInt(parts[2]);
+    console.log(`Parsed entityTypeId=${entityTypeId}, itemId=${itemId}`);
 
-    // Fetch fields and item
+    // Fetch metadata + item data
     const fieldsMeta = await getFieldDefinitions(entityTypeId);
     const item = await getItem(entityTypeId, itemId);
 
-    // Transform for readable labels
+    // Transform raw data into labels
     const cleanData = transformItem(item, fieldsMeta);
 
     console.log("Transformed item:", cleanData);
-
     res.json(cleanData);
+
   } catch (error) {
-    console.error(error);
+    console.error("Error:", error.response?.data || error.message);
     res.status(500).send(error.toString());
   }
 });
