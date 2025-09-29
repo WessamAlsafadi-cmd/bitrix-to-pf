@@ -66,27 +66,31 @@ function transformItem(item, fieldsMeta) {
 // Webhook listener
 app.post("/webhook", async (req, res) => {
   try {
-    // Bitrix sends a URL-encoded 'payload' or direct fields
-    const payload = req.body; 
+    const payload = req.body;
     console.log("Incoming webhook payload:", payload);
 
-    // Parse entityTypeId and itemId from document_id
-    const document_id = JSON.parse(payload.document_id || JSON.stringify(payload.document_id));
+    // Bitrix sends document_id as comma-separated string
+    const document_id_raw = payload.document_id;
+    let document_id;
+
+    if (typeof document_id_raw === "string") {
+      document_id = document_id_raw.split(",");
+    } else {
+      document_id = document_id_raw; // already an array
+    }
+
     const [, , dynamicId] = document_id;
     const [, entityTypeId, itemId] = dynamicId.split("_");
 
     console.log(`Parsed entityTypeId=${entityTypeId}, itemId=${itemId}`);
 
-    // Fetch metadata + item data
     const fieldsMeta = await getFieldDefinitions(entityTypeId);
     const item = await getItem(entityTypeId, itemId);
-
-    // Transform raw data into human-readable labels
     const cleanData = transformItem(item, fieldsMeta);
 
     console.log("Transformed item:", cleanData);
 
-    res.json({ success: true }); // respond quickly to Bitrix
+    res.json({ success: true, data: cleanData });
   } catch (error) {
     console.error("Error:", error.response?.data || error.message);
     res.status(500).send(error.toString());
