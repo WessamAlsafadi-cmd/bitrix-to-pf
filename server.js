@@ -2,6 +2,9 @@ import express from "express";
 import axios from "axios";
 
 const app = express();
+
+// Bitrix sends payload as application/x-www-form-urlencoded
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const BITRIX_BASE = "https://tlre.bitrix24.com/rest/17/q49rh3i333ywswgp";
@@ -51,6 +54,10 @@ function transformItem(item, fieldsMeta) {
 app.post("/webhook", async (req, res) => {
   try {
     console.log("Incoming webhook payload:", req.body);
+
+    if (!req.body.document_id) {
+      throw new Error("document_id not found in payload");
+    }
 
     // Parse entityTypeId and id from document_id
     const [ , , dynamicId ] = req.body.document_id;
